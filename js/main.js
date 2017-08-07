@@ -1,10 +1,12 @@
 var c = document.getElementById('c'),
 ctx = c.getContext('2d'),
-skipped = 0;
+skipped = 0
+var gLoop;
 
 var hideStart = function() {
+  console.log('pappu');
   //Check Mobile
-  // if (!(/Mobi|Tablet|iPad|iPhone/.test(navigator.userAgent))) {
+  if (!(/Mobi|Tablet|iPad|iPhone/.test(navigator.userAgent))) {
     skipped = 1;
     document.querySelector(".start-container").style.animation="fadeout 3s forwards";
     // document.querySelector("audio").pause();
@@ -12,9 +14,19 @@ var hideStart = function() {
     setTimeout(function() {
       document.querySelector(".start-container").style.display = "none";
       document.querySelector("#c").style.display="block";
-      gLoop = setInterval(GameLoop, 1000 / 50);
+      //gLoop = setInterval(GameLoop, 1000 / 50);
+      lightSaber_open();
     }, 3000);
-  // }
+  } else {
+    var c = document.querySelector("#c");
+    // if (window.innerWidth > window.innerHeight) {
+      // document.querySelector(".start-container").style.display = "none";
+      // document.querySelector("#c").style.display="block";
+      if (!window.pageYOffset) hideAddressBar();
+      // gLoop = setInterval(GameLoop, 1000 / 50);
+      lightSaber_open();
+    // }
+  }
 }
 
 //For Mobile
@@ -27,10 +39,24 @@ if (/Mobi|Tablet|iPad|iPhone/.test(navigator.userAgent)) {
   });
 }
 
+function hideAddressBar() {
+  window.scrollTo(0, 1);
+}
+
 document.addEventListener("keypress", function(e) {
   if(String.fromCharCode(e.which) == 'k' && skipped == 0) {
     hideStart();
   }
 });
+
+$(window).on("orientationchange",function(event){
+  setTimeout(function() {
+    if (window.innerWidth < window.innerHeight) ori = "portriat";
+    else ori = "landscape";
+    hideAddressBar();
+  }, 200);
+});
+
+window.addEventListener("load", hideStart);
 //For game dev only
 // hideStart();

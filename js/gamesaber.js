@@ -6,6 +6,7 @@ c.width = screen.width;
 var width = c.width,
 height = c.height,
 gLoop,
+eLoop = null,
 handLength = width*0.15,
 handAngle = Math.PI/2,
 lasers = [],
@@ -43,7 +44,39 @@ var restart = function() {
   cycles = 0;
   laserGenTime = 100;
   lasers = [];
-  GameLoop();
+  gLoop = setInterval(GameLoop, 1000 / 50);
+}
+
+function lightSaber_open() {
+  saber1.light_length = 0;
+  saber1.draw();
+  lightsaberOnAudio.play();
+  var p = setInterval(function() {
+    if (saber1.light_length < width*0.1) {
+      clear();
+      saber1.light_length++;
+      saber1.draw();
+    } else {
+      document.addEventListener("mousemove", function(e) {
+        var x = e.clientX;
+        var y = e.clientY;
+        handAngle = Math.atan2(height-y, x-width/2);
+      });
+      Hammer(c).on("pan", function(event) {
+        var center_x = event.center.x;
+        var center_y = event.center.y;
+        var dx = event.deltaX;
+        var dy = event.deltaY;
+
+        var x = center_x + dx/2;
+        var y = center_y + dy/2;
+
+        handAngle = Math.atan2(height-y, x-width/2);
+      });
+      gLoop = setInterval(GameLoop, 1000 / 50);
+      clearInterval(p);
+    }
+  }, 1);
 }
 
 var hud = function() {
@@ -70,11 +103,16 @@ var drawLine = function(x1, y1, x2, y2) {
 }
 var saber = function() {
   this.length = width*0.1;
+  this.light_length = width*0.1;
   this.holdAngle = Math.PI/2;
   this.startX = width/2 + handLength*Math.cos(handAngle);
   this.startY =  height - handLength*Math.sin(handAngle);
   this.deltaX = this.length*Math.cos(this.holdAngle-handAngle);
   this.deltaY =  this.length*Math.sin(this.holdAngle-handAngle);
+  this.startX_light = width/2 + handLength*Math.cos(handAngle);
+  this.startY_light =  height - handLength*Math.sin(handAngle);
+  this.deltaX_light = this.light_length*Math.cos(this.holdAngle-handAngle);
+  this.deltaY_light =  this.light_length*Math.sin(this.holdAngle-handAngle);
   this.endX = function() { return this.startX - this.deltaX; }
   this.endY = function() { return this.startY - this.deltaY; }
 
@@ -85,6 +123,10 @@ var saber = function() {
     this.startY =  height - r*Math.sin(theta);
     this.deltaX = this.length*Math.cos(this.holdAngle-theta);
     this.deltaY =  this.length*Math.sin(this.holdAngle-theta);
+    this.startX_light = width/2 + r*Math.cos(theta);
+    this.startY_light =  height - r*Math.sin(theta);
+    this.deltaX_light = this.light_length*Math.cos(this.holdAngle-theta);
+    this.deltaY_light =  this.light_length*Math.sin(this.holdAngle-theta);
 
     ctx.strokeStyle="grey";
     ctx.lineWidth=5;
@@ -100,13 +142,13 @@ var saber = function() {
 
     ctx.strokeStyle=saberColor;
     ctx.lineWidth=4;
-    drawLine(this.startX - this.deltaX*0.12, this.startY - this.deltaY*0.12, this.startX - this.deltaX, this.startY - this.deltaY);
+    drawLine(this.startX_light - this.deltaX_light*0.12, this.startY_light - this.deltaY_light*0.12, this.startX_light - this.deltaX_light, this.startY_light - this.deltaY_light);
 
     ctx.strokeStyle= "white";
     ctx.lineWidth=1;
-    drawLine(this.startX - this.deltaX*0.10, this.startY - this.deltaY*0.10, this.startX - this.deltaX*0.99, this.startY - this.deltaY*0.99);
+    drawLine(this.startX_light - this.deltaX_light*0.10, this.startY_light - this.deltaY_light*0.10, this.startX_light - this.deltaX_light*0.99, this.startY_light - this.deltaY_light*0.99);
 
-    ctx.strokeStyle="#grey";
+    ctx.strokeStyle="grey";
     ctx.lineWidth=7;
     drawLine(this.startX - this.deltaX*0.11, this.startY - this.deltaY*0.11, this.startX - this.deltaX*0.12, this.startY - this.deltaY*0.12);
   }
@@ -125,7 +167,7 @@ var laser = function() {
   this.initX = width/2 + this.distance*Math.cos(this.angle);
   this.initY = height - this.distance*Math.sin(this.angle);
 
-  //Laser collides to only 30% its length
+  //Laser collides to only 40% its length
   this.endX = function() { return width/2 + (this.distance+this.length*0.4)*Math.cos(this.angle); }
   this.endY = function() { return height - (this.distance+this.length*0.4)*Math.sin(this.angle); }
 
@@ -166,7 +208,7 @@ var laser = function() {
   }
 }
 //check orientation of point P wrt a line AB
-var orientation = function(ax, ay, bx, by, px, py) {
+function orientation(ax, ay, bx, by, px, py) {
   var val = (by - ay) * (px - bx) - (bx - ax) * (py - by);
   if (val == 0) { return 0; }  // colinear
 
@@ -271,9 +313,20 @@ var endScreen = function() {
   ctx.fillStyle = "rgba(255,255,102, 0.5)";
   ctx.fillText("-   C   O   M   I   N   G       S   O   O   N   -", width/2, height*0.75 + height*0.15*0.7);
 
+  if (!eLoop) pappu();
+
+}
+
+function pappu() {
+
   if(cycles < 100 && gameState == 0) {
     cycles++;
     eLoop = setTimeout(endScreen, 1000 / 50);
+  }
+
+  if (cycles == 100) {
+    clearTimeout(eLoop);
+    eLoop = null;
   }
 
 }
@@ -281,32 +334,13 @@ var endScreen = function() {
 var GameLoop = function() {
   clear();
 
-  for( i=0; i<lasers.length ; i++) {
-    lasers[i].update();
-    lasers[i].draw();
-    if(lasers[i].state == 1 && isBlocked(lasers[i])) {
-      lightsaberHitAudio.pause();
-      if (!isNaN(lightsaberHitAudio.duration)) {
-        lightsaberHitAudio.currentTime = 0;
-      }
-      lightsaberHitAudio.play();
-      points+=5;
-      lasers[i].state = 2;
-      lasers[i].initX = lasers[i].startX;
-      lasers[i].initY = lasers[i].startY;
-      lasers[i].angle = 2*handAngle - lasers[i].angle;
-      lasers[i].distance = 0;
-    }
-    if(lasers[i].state == 0) {
-      lasers.splice(i, 1);
-    }
-  }
+  saber1.draw();
+
   if(cycles >= laserGenTime) {
     lasers.push(new laser());
     cycles = 0;
   }
 
-  saber1.draw();
   laserGenTime = laserGenTime<=20?20:100 - points;
   cycles++;
   if (hurtEffectTimer-- > 0) {
@@ -331,28 +365,41 @@ var GameLoop = function() {
     gameState = 0;
     cycles = 0;
     lightsaberMoveAudio.pause();
-    lightsaberOnAudio.play();
+    window.addEventListener('click', function() {
+     lightsaberMoveAudio.play();
+    });
     clearInterval(gLoop);
     endScreen();
   }
   else if(gameState == 1) {
-    lightsaberMoveAudio.play();
+    window.addEventListener('click', function() {
+     lightsaberMoveAudio.play();
+    });
   }
+
+  for( i=0; i<lasers.length ; i++) {
+    lasers[i].update();
+    lasers[i].draw();
+    if(lasers[i].state == 1 && isBlocked(lasers[i])) {
+      lightsaberHitAudio.pause();
+      if (!isNaN(lightsaberHitAudio.duration)) {
+        lightsaberHitAudio.currentTime = 0;
+      }
+      lightsaberHitAudio.play();
+      points+=5;
+      lasers[i].state = 2;
+      lasers[i].initX = lasers[i].startX;
+      lasers[i].initY = lasers[i].startY;
+      lasers[i].angle = 2*handAngle - lasers[i].angle;
+      lasers[i].distance = 0;
+    }
+    if(lasers[i].state == 0) {
+      lasers.splice(i, 1);
+    }
+  }
+
 }
 
-if (/Mobi|Tablet|iPad|iPhone/.test(navigator.userAgent)) {
-  document.addEventListener("touchmove", function(e) {
-    var x = e.changedTouches[0].clientX;
-    var y = e.changedTouches[0].clientY;
-    handAngle = Math.atan2(height-y, x-width/2);
-  });
-}
-else {
-  document.addEventListener("mousemove", function(e) {
-    var x = e.clientX;
-    var y = e.clientY;
-  });
-}
 document.addEventListener("click", function(e) {
   if(gameState == 0) {
     restart();
